@@ -24,6 +24,26 @@ class FileTableModel(QAbstractTableModel):
             return self._entries[row]
         return None
 
+    def sort(self, column: int, order: Qt.SortOrder = Qt.SortOrder.AscendingOrder) -> None:
+        key_funcs = {
+            0: lambda e: e.name.lower(),
+            1: lambda e: e.mime_type or "",
+            2: lambda e: e.size,
+            3: lambda e: e.modified,
+            4: lambda e: e.suffix,
+        }
+        key_func = key_funcs.get(column)
+        if key_func is None:
+            return
+
+        reverse = order == Qt.SortOrder.DescendingOrder
+        self.layoutAboutToBeChanged.emit()
+        # Directories always stay on top, sorted among themselves; files below them.
+        dirs = sorted((e for e in self._entries if e.is_dir), key=key_func, reverse=reverse)
+        files = sorted((e for e in self._entries if not e.is_dir), key=key_func, reverse=reverse)
+        self._entries = dirs + files
+        self.layoutChanged.emit()
+
     # -- QAbstractTableModel overrides -------------------------------------------------
     def rowCount(self, parent: QModelIndex | QPersistentModelIndex = QModelIndex()) -> int:
         return 0 if parent.isValid() else len(self._entries)
