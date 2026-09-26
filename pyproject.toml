@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "arife"
+version = "0.1.0"
+description = "Advanced Research File Information Explorer (ARIFE) - a free, open-source, plugin-based desktop tool for exploring files and their metadata"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "ARIFE contributors" }]
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: X11 Applications :: Qt",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "PySide6>=6.6",
+]
+
+[project.optional-dependencies]
+pdf = ["pypdf>=4.0"]
+images = ["Pillow>=10.0"]
+datasets = ["pandas>=2.0"]
+all = ["pypdf>=4.0", "Pillow>=10.0", "pandas>=2.0"]
+dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.6"]
+
+[project.urls]
+Homepage = "https://github.com/arife-project/arife"
+Issues = "https://github.com/arife-project/arife/issues"
+
+[project.scripts]
+arife = "arife.__main__:main"
+
+[project.entry-points."arife.plugins"]
+basic_metadata = "arife.plugins.basic_metadata:BasicMetadataPlugin"
+pdf_research = "arife.plugins.pdf_research:PdfResearchPlugin"
+dataset_preview = "arife.plugins.dataset_preview:DatasetPreviewPlugin"
+image_exif = "arife.plugins.image_exif:ImageExifPlugin"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+# DTZ006: file timestamps are intentionally shown in naive local time, matching the OS.
+# B008: QModelIndex() as a default argument mirrors Qt's own C++ method signatures
+#       for QAbstractItemModel overrides and is the standard PySide6/PyQt idiom.
+ignore = ["DTZ006", "B008"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
