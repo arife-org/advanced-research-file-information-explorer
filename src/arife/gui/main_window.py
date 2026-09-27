@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QDir, QThreadPool
+from PySide6.QtCore import QByteArray, QDir, QSettings, QThreadPool
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -33,15 +33,47 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("ARIFE — Advanced Research File Information Explorer")
         self.resize(1200, 750)
 
+        self._settings = QSettings()
         self._plugin_manager = PluginManager()
         self._plugin_manager.discover()
+        self._restore_plugin_state()
         self._thread_pool = QThreadPool.globalInstance()
-        self._current_root = Path.home()
+        self._current_root = self._restore_last_folder()
         self._selected_entry = None
 
         self._build_ui()
         self._build_menu()
         self._load_directory(self._current_root)
+        self._restore_geometry()
+
+    # -- Persisted settings ---------------------------------------------------------------
+    def _restore_last_folder(self) -> Path:
+        saved = self._settings.value("last_folder", str(Path.home()))
+        path = Path(saved)
+        return path if path.is_dir() else Path.home()
+
+    def _restore_plugin_state(self) -> None:
+        disabled_ids = self._settings.value("disabled_plugins", [])
+        if isinstance(disabled_ids, str):
+            disabled_ids = [disabled_ids]
+        for plugin_id in disabled_ids:
+            self._plugin_manager.set_enabled(plugin_id, False)
+
+    def _save_plugin_state(self) -> None:
+        disabled_ids = [
+            plugin.id for plugin in self._plugin_manager.plugins()
+            if not self._plugin_manager.is_enabled(plugin.id)
+        ]
+        self._settings.setValue("disabled_plugins", disabled_ids)
+
+    def _restore_geometry(self) -> None:
+        geometry = self._settings.value("window_geometry", QByteArray())
+        if geometry:
+            self.restoreGeometry(geometry)
+
+    def closeEvent(self, event) -> None:
+        self._settings.setValue("window_geometry", self.saveGeometry())
+        super().closeEvent(event)
 
     # -- UI construction ----------------------------------------------------------------
     def _build_ui(self) -> None:
@@ -125,6 +157,7 @@ class MainWindow(QMainWindow):
         self._table_model.set_entries(entries)
         self.statusBar().showMessage(f"{path}  —  {len(entries)} entries")
         self._search_box.clear()
+        self._settings.setValue("last_folder", str(path))
 
     def _apply_filter(self, text: str) -> None:
         text = text.lower()
@@ -189,6 +222,7 @@ class MainWindow(QMainWindow):
         dialog = PluginManagerDialog(self._plugin_manager, self)
         if dialog.exec():
             dialog.apply()
+            self._save_plugin_state()
 
     def _show_about(self) -> None:
         QMessageBox.about(
