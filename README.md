@@ -73,11 +73,18 @@ Then:
 
 1. Browse to a folder using the tree on the left, or **File → Open Folder…**.
 2. Select a file in the table to see everything ARIFE's active plugins can
-   tell you about it, in the panel on the right.
-3. Use the filter box to narrow down large folders by filename.
-4. Open **Tools → Plugin Manager…** to enable or disable individual plugins
+   tell you about it, in the panel on the right — including an on-demand
+   SHA-256 hash via the button in the detail panel.
+3. Use the filter box to narrow down large folders by filename, and click
+   any column header to sort (folders always stay on top).
+4. Check **Include subfolders** to scan recursively; a "Location" column
+   then shows each result's path relative to the current folder.
+5. Open **Tools → Plugin Manager…** to enable or disable individual plugins
    (useful if a plugin's optional dependency isn't installed, or you simply
    don't need it).
+
+ARIFE remembers your last opened folder, plugin selection and window size
+between launches.
 
 ## Writing your own plugin
 

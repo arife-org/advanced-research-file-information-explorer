@@ -6,8 +6,10 @@ from pathlib import Path
 from PySide6.QtCore import QByteArray, QDir, QSettings, QThreadPool
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
+    QCheckBox,
     QFileDialog,
     QFileSystemModel,
+    QHBoxLayout,
     QLineEdit,
     QMainWindow,
     QMessageBox,
@@ -20,11 +22,10 @@ from PySide6.QtWidgets import (
 
 from arife import __version__
 from arife.core.plugin import PluginManager
-from arife.core.scanner import scan_directory
 from arife.gui.detail_panel import DetailPanel
-from arife.gui.file_table_model import FileTableModel
+from arife.gui.file_table_model import LOCATION_COLUMN, FileTableModel
 from arife.gui.plugin_dialog import PluginManagerDialog
-from arife.gui.worker import HashWorker, MetadataExtractionWorker
+from arife.gui.worker import DirectoryScanWorker, HashWorker, MetadataExtractionWorker
 
 
 class MainWindow(QMainWindow):
@@ -40,6 +41,8 @@ class MainWindow(QMainWindow):
         self._thread_pool = QThreadPool.globalInstance()
         self._current_root = self._restore_last_folder()
         self._selected_entry = None
+        self._all_entries: list = []
+        self._scan_generation = 0
 
         self._build_ui()
         self._build_menu()
@@ -92,6 +95,14 @@ class MainWindow(QMainWindow):
         self._search_box.setPlaceholderText("Filter files by name…")
         self._search_box.textChanged.connect(self._apply_filter)
 
+        self._recursive_checkbox = QCheckBox("Include subfolders")
+        self._recursive_checkbox.setChecked(self._settings.value("recursive_scan", False, type=bool))
+        self._recursive_checkbox.toggled.connect(self._on_recursive_toggled)
+
+        search_row = QHBoxLayout()
+        search_row.addWidget(self._search_box, stretch=1)
+        search_row.addWidget(self._recursive_checkbox)
+
         self._table_model = FileTableModel()
         self._table_view = QTableView()
         self._table_view.setModel(self._table_model)
@@ -100,13 +111,14 @@ class MainWindow(QMainWindow):
         self._table_view.setEditTriggers(QTableView.EditTrigger.NoEditTriggers)
         self._table_view.horizontalHeader().setStretchLastSection(True)
         self._table_view.setSortingEnabled(True)
+        self._table_view.setColumnHidden(LOCATION_COLUMN, not self._recursive_checkbox.isChecked())
         self._table_view.selectionModel().selectionChanged.connect(self._on_selection_changed)
         self._table_view.doubleClicked.connect(self._on_table_double_clicked)
 
         middle_widget = QWidget()
         middle_layout = QVBoxLayout(middle_widget)
         middle_layout.setContentsMargins(0, 0, 0, 0)
-        middle_layout.addWidget(self._search_box)
+        middle_layout.addLayout(search_row)
         middle_layout.addWidget(self._table_view)
 
         self._detail_panel = DetailPanel()
@@ -149,20 +161,35 @@ class MainWindow(QMainWindow):
     # -- Directory / file listing ---------------------------------------------------------
     def _load_directory(self, path: Path) -> None:
         self._current_root = path
-        entries = sorted(
-            scan_directory(path, recursive=False),
-            key=lambda e: (not e.is_dir, e.name.lower()),
-        )
-        self._all_entries = entries
-        self._table_model.set_entries(entries)
-        self.statusBar().showMessage(f"{path}  —  {len(entries)} entries")
         self._search_box.clear()
         self._settings.setValue("last_folder", str(path))
+
+        self._scan_generation += 1
+        generation = self._scan_generation
+        recursive = self._recursive_checkbox.isChecked()
+
+        self.statusBar().showMessage(f"Scanning {path}…")
+        worker = DirectoryScanWorker(path, recursive=recursive, generation=generation)
+        worker.signals.finished.connect(self._on_scan_finished)
+        self._thread_pool.start(worker)
+
+    def _on_scan_finished(self, generation: int, root: Path, entries: list) -> None:
+        if generation != self._scan_generation:
+            return  # superseded by a newer navigation/toggle
+
+        self._all_entries = entries
+        self._table_model.set_entries(entries, root)
+        self.statusBar().showMessage(f"{root}  —  {len(entries)} entries")
 
     def _apply_filter(self, text: str) -> None:
         text = text.lower()
         filtered = [e for e in self._all_entries if text in e.name.lower()]
-        self._table_model.set_entries(filtered)
+        self._table_model.set_entries(filtered, self._current_root)
+
+    def _on_recursive_toggled(self, checked: bool) -> None:
+        self._settings.setValue("recursive_scan", checked)
+        self._table_view.setColumnHidden(LOCATION_COLUMN, not checked)
+        self._load_directory(self._current_root)
 
     def _open_folder_dialog(self) -> None:
         directory = QFileDialog.getExistingDirectory(self, "Open Folder", str(self._current_root))
