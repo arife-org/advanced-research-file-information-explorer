@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 from arife import __version__
 from arife.core.plugin import PluginManager
 from arife.gui.detail_panel import DetailPanel
+from arife.gui.duplicate_finder_dialog import DuplicateFinderDialog
 from arife.gui.file_table_model import LOCATION_COLUMN, FileTableModel
 from arife.gui.plugin_dialog import PluginManagerDialog
 from arife.gui.worker import DirectoryScanWorker, HashWorker, MetadataExtractionWorker
@@ -153,6 +154,10 @@ class MainWindow(QMainWindow):
         plugins_action.triggered.connect(self._open_plugin_manager)
         tools_menu.addAction(plugins_action)
 
+        duplicates_action = QAction("Find &Duplicate Files…", self)
+        duplicates_action.triggered.connect(self._open_duplicate_finder)
+        tools_menu.addAction(duplicates_action)
+
         help_menu = self.menuBar().addMenu("&Help")
         about_action = QAction("&About ARIFE", self)
         about_action.triggered.connect(self._show_about)
@@ -250,6 +255,10 @@ class MainWindow(QMainWindow):
         if dialog.exec():
             dialog.apply()
             self._save_plugin_state()
+
+    def _open_duplicate_finder(self) -> None:
+        dialog = DuplicateFinderDialog(self._current_root, self)
+        dialog.exec()
 
     def _show_about(self) -> None:
         QMessageBox.about(
