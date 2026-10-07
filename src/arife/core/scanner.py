@@ -16,7 +16,12 @@ def scan_directory(root: Path, *, recursive: bool = False, include_hidden: bool 
     """
     root = Path(root)
 
-    with os.scandir(root) as it:
+    try:
+        scandir_iter = os.scandir(root)
+    except OSError:
+        return
+
+    with scandir_iter as it:
         for dirent in it:
             if not include_hidden and dirent.name.startswith("."):
                 continue

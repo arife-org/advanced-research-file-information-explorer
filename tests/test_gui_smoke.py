@@ -20,6 +20,19 @@ def qapp():
     yield app
 
 
+@pytest.fixture(autouse=True)
+def isolated_settings(tmp_path):
+    """Redirect QSettings to a throwaway file so tests never touch (or are
+    affected by) the real ARIFE desktop preferences on this machine."""
+    from PySide6.QtCore import QCoreApplication, QSettings
+
+    QCoreApplication.setOrganizationName("ARIFE")
+    QCoreApplication.setApplicationName("ARIFE")
+    QSettings.setDefaultFormat(QSettings.Format.IniFormat)
+    QSettings.setPath(QSettings.Format.IniFormat, QSettings.Scope.UserScope, str(tmp_path))
+    yield
+
+
 def test_main_window_constructs_and_lists_home_directory(qapp):
     from arife.gui.main_window import MainWindow
 
