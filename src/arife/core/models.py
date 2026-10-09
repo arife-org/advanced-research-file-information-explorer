@@ -44,6 +44,21 @@ class FileEntry:
         )
 
 
+def relative_location(entry: FileEntry, root: Path | None) -> str:
+    """Return `entry`'s parent directory relative to `root`.
+
+    Yields "" for a top-level entry (directly inside `root`) or when `root`
+    is unknown / not an ancestor of `entry`.
+    """
+    if root is None:
+        return ""
+    try:
+        rel = entry.path.parent.relative_to(root)
+    except ValueError:
+        return ""
+    return "" if str(rel) == "." else str(rel)
+
+
 @dataclass
 class MetadataResult:
     """Metadata extracted from a single `FileEntry` by one plugin."""

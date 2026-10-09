@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from arife import __version__
+from arife.core.export import export_entries_to_csv, export_entries_to_json
 from arife.core.plugin import PluginManager
 from arife.gui.detail_panel import DetailPanel
 from arife.gui.duplicate_finder_dialog import DuplicateFinderDialog
@@ -144,6 +145,13 @@ class MainWindow(QMainWindow):
         open_action.triggered.connect(self._open_folder_dialog)
         file_menu.addAction(open_action)
 
+        export_action = QAction("&Export File List…", self)
+        export_action.setShortcut("Ctrl+E")
+        export_action.triggered.connect(self._export_file_list)
+        file_menu.addAction(export_action)
+
+        file_menu.addSeparator()
+
         quit_action = QAction("&Quit", self)
         quit_action.setShortcut("Ctrl+Q")
         quit_action.triggered.connect(self.close)
@@ -200,6 +208,32 @@ class MainWindow(QMainWindow):
         directory = QFileDialog.getExistingDirectory(self, "Open Folder", str(self._current_root))
         if directory:
             self._load_directory(Path(directory))
+
+    def _export_file_list(self) -> None:
+        default_path = str(self._current_root / "arife-export.csv")
+        path_str, selected_filter = QFileDialog.getSaveFileName(
+            self, "Export File List", default_path, "CSV files (*.csv);;JSON files (*.json)"
+        )
+        if not path_str:
+            return
+
+        destination = Path(path_str)
+        use_json = "JSON" in selected_filter or destination.suffix.lower() == ".json"
+        wanted_suffix = ".json" if use_json else ".csv"
+        if destination.suffix.lower() != wanted_suffix:
+            destination = destination.with_suffix(wanted_suffix)
+
+        entries = self._table_model.entries()
+        try:
+            if use_json:
+                export_entries_to_json(entries, self._current_root, destination)
+            else:
+                export_entries_to_csv(entries, self._current_root, destination)
+        except OSError as exc:
+            QMessageBox.critical(self, "Export failed", str(exc))
+            return
+
+        self.statusBar().showMessage(f"Exported {len(entries)} entries to {destination}")
 
     def _on_tree_clicked(self, index) -> None:
         path = self._dir_model.filePath(index)

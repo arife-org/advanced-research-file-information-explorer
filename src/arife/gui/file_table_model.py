@@ -5,7 +5,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QPersistentModelIndex, Qt
 
-from arife.core.models import FileEntry
+from arife.core.models import FileEntry, relative_location
 from arife.plugins.basic_metadata import human_size
 
 _COLUMNS = ("Name", "Type", "Size", "Modified", "Extension", "Location")
@@ -29,14 +29,9 @@ class FileTableModel(QAbstractTableModel):
             return self._entries[row]
         return None
 
-    def _location_of(self, entry: FileEntry) -> str:
-        if self._root is None:
-            return ""
-        try:
-            rel = entry.path.parent.relative_to(self._root)
-        except ValueError:
-            return ""
-        return "" if str(rel) == "." else str(rel)
+    def entries(self) -> list[FileEntry]:
+        """Return a copy of the currently displayed entries (post-filter/sort)."""
+        return list(self._entries)
 
     def sort(self, column: int, order: Qt.SortOrder = Qt.SortOrder.AscendingOrder) -> None:
         key_funcs = {
@@ -45,7 +40,7 @@ class FileTableModel(QAbstractTableModel):
             2: lambda e: e.size,
             3: lambda e: e.modified,
             4: lambda e: e.suffix,
-            5: self._location_of,
+            5: lambda e: relative_location(e, self._root),
         }
         key_func = key_funcs.get(column)
         if key_func is None:
@@ -89,5 +84,5 @@ class FileTableModel(QAbstractTableModel):
         if column == "Extension":
             return entry.suffix or "-"
         if column == "Location":
-            return self._location_of(entry) or "."
+            return relative_location(entry, self._root) or "."
         return None
