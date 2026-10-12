@@ -3,15 +3,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QByteArray, QDir, QSettings, QThreadPool
+from PySide6.QtCore import QByteArray, QDir, QPoint, QSettings, Qt, QThreadPool
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QFileDialog,
     QFileSystemModel,
     QHBoxLayout,
     QLineEdit,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QSplitter,
     QTableView,
@@ -25,6 +27,7 @@ from arife.core.export import export_entries_to_csv, export_entries_to_json
 from arife.core.plugin import PluginManager
 from arife.gui.detail_panel import DetailPanel
 from arife.gui.duplicate_finder_dialog import DuplicateFinderDialog
+from arife.gui.file_actions import open_with_default_app, reveal_in_file_manager, reveal_label
 from arife.gui.file_table_model import LOCATION_COLUMN, FileTableModel
 from arife.gui.plugin_dialog import PluginManagerDialog
 from arife.gui.worker import DirectoryScanWorker, HashWorker, MetadataExtractionWorker
@@ -116,6 +119,8 @@ class MainWindow(QMainWindow):
         self._table_view.setColumnHidden(LOCATION_COLUMN, not self._recursive_checkbox.isChecked())
         self._table_view.selectionModel().selectionChanged.connect(self._on_selection_changed)
         self._table_view.doubleClicked.connect(self._on_table_double_clicked)
+        self._table_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._table_view.customContextMenuRequested.connect(self._on_table_context_menu)
 
         middle_widget = QWidget()
         middle_layout = QVBoxLayout(middle_widget)
@@ -241,8 +246,35 @@ class MainWindow(QMainWindow):
 
     def _on_table_double_clicked(self, index) -> None:
         entry = self._table_model.entry_at(index.row())
-        if entry and entry.is_dir:
+        if entry is None:
+            return
+        if entry.is_dir:
             self._load_directory(entry.path)
+        else:
+            open_with_default_app(entry.path)
+
+    def _on_table_context_menu(self, position: QPoint) -> None:
+        index = self._table_view.indexAt(position)
+        entry = self._table_model.entry_at(index.row()) if index.isValid() else None
+        if entry is None:
+            return
+
+        menu = QMenu(self)
+        open_action = menu.addAction("Open")
+        reveal_action = menu.addAction(reveal_label())
+        menu.addSeparator()
+        copy_path_action = menu.addAction("Copy Path")
+
+        chosen = menu.exec(self._table_view.viewport().mapToGlobal(position))
+        if chosen is open_action:
+            if entry.is_dir:
+                self._load_directory(entry.path)
+            else:
+                open_with_default_app(entry.path)
+        elif chosen is reveal_action:
+            reveal_in_file_manager(entry.path)
+        elif chosen is copy_path_action:
+            QApplication.clipboard().setText(str(entry.path))
 
     # -- Metadata extraction --------------------------------------------------------------
     def _on_selection_changed(self, *_args) -> None:
