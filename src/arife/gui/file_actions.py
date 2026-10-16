@@ -45,3 +45,18 @@ def reveal_in_file_manager(path: Path) -> bool:
     except OSError:
         return False
     return True
+
+
+def trash_available() -> bool:
+    try:
+        import send2trash  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+def move_to_trash(path: Path) -> None:
+    """Move `path` to the OS trash/recycle bin. Raises if the `send2trash` extra isn't installed."""
+    import send2trash
+
+    send2trash.send2trash(str(path))

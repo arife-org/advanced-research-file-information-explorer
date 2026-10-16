@@ -27,7 +27,13 @@ from arife.core.export import export_entries_to_csv, export_entries_to_json
 from arife.core.plugin import PluginManager
 from arife.gui.detail_panel import DetailPanel
 from arife.gui.duplicate_finder_dialog import DuplicateFinderDialog
-from arife.gui.file_actions import open_with_default_app, reveal_in_file_manager, reveal_label
+from arife.gui.file_actions import (
+    move_to_trash,
+    open_with_default_app,
+    reveal_in_file_manager,
+    reveal_label,
+    trash_available,
+)
 from arife.gui.file_table_model import LOCATION_COLUMN, FileTableModel
 from arife.gui.plugin_dialog import PluginManagerDialog
 from arife.gui.worker import DirectoryScanWorker, HashWorker, MetadataExtractionWorker
@@ -112,7 +118,7 @@ class MainWindow(QMainWindow):
         self._table_view = QTableView()
         self._table_view.setModel(self._table_model)
         self._table_view.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
-        self._table_view.setSelectionMode(QTableView.SelectionMode.SingleSelection)
+        self._table_view.setSelectionMode(QTableView.SelectionMode.ExtendedSelection)
         self._table_view.setEditTriggers(QTableView.EditTrigger.NoEditTriggers)
         self._table_view.horizontalHeader().setStretchLastSection(True)
         self._table_view.setSortingEnabled(True)
@@ -253,28 +259,87 @@ class MainWindow(QMainWindow):
         else:
             open_with_default_app(entry.path)
 
+    def _selected_entries(self) -> list:
+        rows = self._table_view.selectionModel().selectedRows()
+        entries = (self._table_model.entry_at(r.row()) for r in rows)
+        return [e for e in entries if e is not None]
+
     def _on_table_context_menu(self, position: QPoint) -> None:
         index = self._table_view.indexAt(position)
-        entry = self._table_model.entry_at(index.row()) if index.isValid() else None
-        if entry is None:
+        if not index.isValid():
+            return
+
+        if not self._table_view.selectionModel().isSelected(index):
+            self._table_view.selectionModel().clearSelection()
+            self._table_view.selectRow(index.row())
+
+        entries = self._selected_entries()
+        if not entries:
             return
 
         menu = QMenu(self)
-        open_action = menu.addAction("Open")
-        reveal_action = menu.addAction(reveal_label())
+        menu.setToolTipsVisible(True)
+
+        open_action = reveal_action = None
+        if len(entries) == 1:
+            open_action = menu.addAction("Open")
+            reveal_action = menu.addAction(reveal_label())
+            menu.addSeparator()
+            copy_action = menu.addAction("Copy Path")
+        else:
+            copy_action = menu.addAction("Copy Paths")
+
         menu.addSeparator()
-        copy_path_action = menu.addAction("Copy Path")
+        trash_label = "Move to Trash…" if len(entries) == 1 else f"Move {len(entries)} Items to Trash…"
+        trash_action = menu.addAction(trash_label)
+        trash_action.setEnabled(trash_available())
+        if not trash_available():
+            trash_action.setToolTip("Install the 'send2trash' extra to enable this (pip install arife[trash])")
 
         chosen = menu.exec(self._table_view.viewport().mapToGlobal(position))
+        if chosen is None:
+            return
+
         if chosen is open_action:
+            entry = entries[0]
             if entry.is_dir:
                 self._load_directory(entry.path)
             else:
                 open_with_default_app(entry.path)
         elif chosen is reveal_action:
-            reveal_in_file_manager(entry.path)
-        elif chosen is copy_path_action:
-            QApplication.clipboard().setText(str(entry.path))
+            reveal_in_file_manager(entries[0].path)
+        elif chosen is copy_action:
+            QApplication.clipboard().setText("\n".join(str(e.path) for e in entries))
+        elif chosen is trash_action:
+            self._trash_entries(entries)
+
+    def _trash_entries(self, entries: list) -> None:
+        if len(entries) == 1:
+            message = f'Move "{entries[0].name}" to the trash?'
+        else:
+            message = f"Move {len(entries)} items to the trash?"
+
+        confirmed = QMessageBox.question(
+            self,
+            "Move to Trash",
+            message,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if confirmed != QMessageBox.StandardButton.Yes:
+            return
+
+        failures = []
+        for entry in entries:
+            try:
+                move_to_trash(entry.path)
+            except Exception as exc:  # noqa: BLE001 - surface any backend failure, not just OSError
+                failures.append(f"{entry.name}: {exc}")
+
+        self._load_directory(self._current_root)
+
+        if failures:
+            QMessageBox.warning(self, "Some items could not be trashed", "\n".join(failures))
 
     # -- Metadata extraction --------------------------------------------------------------
     def _on_selection_changed(self, *_args) -> None:
@@ -282,6 +347,12 @@ class MainWindow(QMainWindow):
         if not rows:
             self._selected_entry = None
             return
+
+        if len(rows) > 1:
+            self._selected_entry = None
+            self._detail_panel.show_multi_selection(len(rows))
+            return
+
         entry = self._table_model.entry_at(rows[0].row())
         if entry is None:
             self._selected_entry = None

@@ -82,3 +82,9 @@ class DetailPanel(QWidget):
     def show_hash_error(self, message: str) -> None:
         self._hash_button.setEnabled(True)
         self._hash_label.setText(f"Error: {message}")
+
+    def show_multi_selection(self, count: int) -> None:
+        self._title.setText(f"{count} items selected")
+        self._tree.clear()
+        self._hash_label.setText("")
+        self._hash_button.setEnabled(False)
