@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QByteArray, QDir, QPoint, QSettings, Qt, QThreadPool
+from PySide6.QtCore import QDir, QPoint, Qt, QThreadPool
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QApplication,
@@ -36,6 +36,7 @@ from arife.gui.file_actions import (
 )
 from arife.gui.file_table_model import LOCATION_COLUMN, FileTableModel
 from arife.gui.plugin_dialog import PluginManagerDialog
+from arife.gui.settings import AppSettings
 from arife.gui.worker import DirectoryScanWorker, HashWorker, MetadataExtractionWorker
 
 
@@ -45,12 +46,13 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("ARIFE — Advanced Research File Information Explorer")
         self.resize(1200, 750)
 
-        self._settings = QSettings()
+        self._app_settings = AppSettings()
         self._plugin_manager = PluginManager()
         self._plugin_manager.discover()
-        self._restore_plugin_state()
+        for plugin_id in self._app_settings.disabled_plugin_ids():
+            self._plugin_manager.set_enabled(plugin_id, False)
         self._thread_pool = QThreadPool.globalInstance()
-        self._current_root = self._restore_last_folder()
+        self._current_root = self._app_settings.last_folder(Path.home())
         self._selected_entry = None
         self._all_entries: list = []
         self._scan_generation = 0
@@ -58,75 +60,20 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._build_menu()
         self._load_directory(self._current_root)
-        self._restore_geometry()
 
-    # -- Persisted settings ---------------------------------------------------------------
-    def _restore_last_folder(self) -> Path:
-        saved = self._settings.value("last_folder", str(Path.home()))
-        path = Path(saved)
-        return path if path.is_dir() else Path.home()
-
-    def _restore_plugin_state(self) -> None:
-        disabled_ids = self._settings.value("disabled_plugins", [])
-        if isinstance(disabled_ids, str):
-            disabled_ids = [disabled_ids]
-        for plugin_id in disabled_ids:
-            self._plugin_manager.set_enabled(plugin_id, False)
-
-    def _save_plugin_state(self) -> None:
-        disabled_ids = [
-            plugin.id for plugin in self._plugin_manager.plugins()
-            if not self._plugin_manager.is_enabled(plugin.id)
-        ]
-        self._settings.setValue("disabled_plugins", disabled_ids)
-
-    def _restore_geometry(self) -> None:
-        geometry = self._settings.value("window_geometry", QByteArray())
+        geometry = self._app_settings.window_geometry()
         if geometry:
             self.restoreGeometry(geometry)
 
     def closeEvent(self, event) -> None:
-        self._settings.setValue("window_geometry", self.saveGeometry())
+        self._app_settings.set_window_geometry(self.saveGeometry())
         super().closeEvent(event)
 
     # -- UI construction ----------------------------------------------------------------
     def _build_ui(self) -> None:
-        self._dir_model = QFileSystemModel()
-        self._dir_model.setRootPath("")
-        self._dir_model.setFilter(QDir.Filter.AllDirs | QDir.Filter.NoDotAndDotDot)
-
-        self._tree_view = QTreeView()
-        self._tree_view.setModel(self._dir_model)
-        self._tree_view.setRootIndex(self._dir_model.index(str(Path.home())))
-        for col in (1, 2, 3):
-            self._tree_view.hideColumn(col)
-        self._tree_view.clicked.connect(self._on_tree_clicked)
-
-        self._search_box = QLineEdit()
-        self._search_box.setPlaceholderText("Filter files by name…")
-        self._search_box.textChanged.connect(self._apply_filter)
-
-        self._recursive_checkbox = QCheckBox("Include subfolders")
-        self._recursive_checkbox.setChecked(self._settings.value("recursive_scan", False, type=bool))
-        self._recursive_checkbox.toggled.connect(self._on_recursive_toggled)
-
-        search_row = QHBoxLayout()
-        search_row.addWidget(self._search_box, stretch=1)
-        search_row.addWidget(self._recursive_checkbox)
-
-        self._table_model = FileTableModel()
-        self._table_view = QTableView()
-        self._table_view.setModel(self._table_model)
-        self._table_view.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
-        self._table_view.setSelectionMode(QTableView.SelectionMode.ExtendedSelection)
-        self._table_view.setEditTriggers(QTableView.EditTrigger.NoEditTriggers)
-        self._table_view.horizontalHeader().setStretchLastSection(True)
-        self._table_view.setSortingEnabled(True)
-        self._table_view.setColumnHidden(LOCATION_COLUMN, not self._recursive_checkbox.isChecked())
-        self._table_view.selectionModel().selectionChanged.connect(self._on_selection_changed)
-        self._table_view.doubleClicked.connect(self._on_table_double_clicked)
-        self._table_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self._table_view.customContextMenuRequested.connect(self._on_table_context_menu)
+        self._tree_view = self._build_tree_view()
+        self._search_box, self._recursive_checkbox, search_row = self._build_search_row()
+        self._table_model, self._table_view = self._build_table_view()
 
         middle_widget = QWidget()
         middle_layout = QVBoxLayout(middle_widget)
@@ -147,6 +94,49 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(splitter)
         self.statusBar().showMessage("Ready")
+
+    def _build_tree_view(self) -> QTreeView:
+        self._dir_model = QFileSystemModel()
+        self._dir_model.setRootPath("")
+        self._dir_model.setFilter(QDir.Filter.AllDirs | QDir.Filter.NoDotAndDotDot)
+
+        tree_view = QTreeView()
+        tree_view.setModel(self._dir_model)
+        tree_view.setRootIndex(self._dir_model.index(str(Path.home())))
+        for col in (1, 2, 3):
+            tree_view.hideColumn(col)
+        tree_view.clicked.connect(self._on_tree_clicked)
+        return tree_view
+
+    def _build_search_row(self) -> tuple[QLineEdit, QCheckBox, QHBoxLayout]:
+        search_box = QLineEdit()
+        search_box.setPlaceholderText("Filter files by name…")
+        search_box.textChanged.connect(self._apply_filter)
+
+        recursive_checkbox = QCheckBox("Include subfolders")
+        recursive_checkbox.setChecked(self._app_settings.recursive_scan())
+        recursive_checkbox.toggled.connect(self._on_recursive_toggled)
+
+        row = QHBoxLayout()
+        row.addWidget(search_box, stretch=1)
+        row.addWidget(recursive_checkbox)
+        return search_box, recursive_checkbox, row
+
+    def _build_table_view(self) -> tuple[FileTableModel, QTableView]:
+        model = FileTableModel()
+        view = QTableView()
+        view.setModel(model)
+        view.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
+        view.setSelectionMode(QTableView.SelectionMode.ExtendedSelection)
+        view.setEditTriggers(QTableView.EditTrigger.NoEditTriggers)
+        view.horizontalHeader().setStretchLastSection(True)
+        view.setSortingEnabled(True)
+        view.setColumnHidden(LOCATION_COLUMN, not self._recursive_checkbox.isChecked())
+        view.selectionModel().selectionChanged.connect(self._on_selection_changed)
+        view.doubleClicked.connect(self._on_table_double_clicked)
+        view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        view.customContextMenuRequested.connect(self._on_table_context_menu)
+        return model, view
 
     def _build_menu(self) -> None:
         file_menu = self.menuBar().addMenu("&File")
@@ -186,7 +176,7 @@ class MainWindow(QMainWindow):
     def _load_directory(self, path: Path) -> None:
         self._current_root = path
         self._search_box.clear()
-        self._settings.setValue("last_folder", str(path))
+        self._app_settings.set_last_folder(path)
 
         self._scan_generation += 1
         generation = self._scan_generation
@@ -211,7 +201,7 @@ class MainWindow(QMainWindow):
         self._table_model.set_entries(filtered, self._current_root)
 
     def _on_recursive_toggled(self, checked: bool) -> None:
-        self._settings.setValue("recursive_scan", checked)
+        self._app_settings.set_recursive_scan(checked)
         self._table_view.setColumnHidden(LOCATION_COLUMN, not checked)
         self._load_directory(self._current_root)
 
@@ -391,7 +381,12 @@ class MainWindow(QMainWindow):
         dialog = PluginManagerDialog(self._plugin_manager, self)
         if dialog.exec():
             dialog.apply()
-            self._save_plugin_state()
+            disabled_ids = [
+                plugin.id
+                for plugin in self._plugin_manager.plugins()
+                if not self._plugin_manager.is_enabled(plugin.id)
+            ]
+            self._app_settings.set_disabled_plugin_ids(disabled_ids)
 
     def _open_duplicate_finder(self) -> None:
         dialog = DuplicateFinderDialog(self._current_root, self)
