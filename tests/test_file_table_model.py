@@ -69,3 +69,32 @@ def test_sort_keeps_directories_on_top(qapp, tmp_path):
 
     first_entry = model.entry_at(0)
     assert first_entry.is_dir is True
+
+
+def test_name_column_has_a_decoration_icon(qapp, tmp_path):
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QIcon
+
+    from arife.gui.file_table_model import FileTableModel
+
+    entries = _make_entries(tmp_path)
+    model = FileTableModel()
+    model.set_entries(entries, tmp_path)
+
+    index = model.index(0, 0)
+    icon = model.data(index, role=Qt.ItemDataRole.DecorationRole)
+    assert isinstance(icon, QIcon)
+    assert not icon.isNull()
+
+
+def test_other_columns_have_no_decoration_icon(qapp, tmp_path):
+    from PySide6.QtCore import Qt
+
+    from arife.gui.file_table_model import FileTableModel
+
+    entries = _make_entries(tmp_path)
+    model = FileTableModel()
+    model.set_entries(entries, tmp_path)
+
+    index = model.index(0, 1)  # Type column
+    assert model.data(index, role=Qt.ItemDataRole.DecorationRole) is None

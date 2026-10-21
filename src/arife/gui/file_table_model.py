@@ -3,7 +3,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, QPersistentModelIndex, Qt
+from PySide6.QtCore import QAbstractTableModel, QFileInfo, QModelIndex, QPersistentModelIndex, Qt
+from PySide6.QtWidgets import QFileIconProvider
 
 from arife.core.models import FileEntry, relative_location
 from arife.plugins.basic_metadata import human_size
@@ -17,6 +18,7 @@ class FileTableModel(QAbstractTableModel):
         super().__init__(parent)
         self._entries: list[FileEntry] = []
         self._root: Path | None = None
+        self._icon_provider = QFileIconProvider()
 
     def set_entries(self, entries: list[FileEntry], root: Path | None = None) -> None:
         self.beginResetModel()
@@ -67,10 +69,17 @@ class FileTableModel(QAbstractTableModel):
         return None
 
     def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole):
-        if not index.isValid() or role != Qt.ItemDataRole.DisplayRole:
+        if not index.isValid():
             return None
 
         entry = self._entries[index.row()]
+
+        if role == Qt.ItemDataRole.DecorationRole and index.column() == 0:
+            return self._icon_provider.icon(QFileInfo(str(entry.path)))
+
+        if role != Qt.ItemDataRole.DisplayRole:
+            return None
+
         column = _COLUMNS[index.column()]
 
         if column == "Name":

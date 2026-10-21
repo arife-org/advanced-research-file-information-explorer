@@ -16,7 +16,6 @@ from PySide6.QtWidgets import (
     QMenu,
     QMessageBox,
     QSplitter,
-    QTableView,
     QTreeView,
     QVBoxLayout,
     QWidget,
@@ -35,6 +34,7 @@ from arife.gui.file_actions import (
     trash_available,
 )
 from arife.gui.file_table_model import LOCATION_COLUMN, FileTableModel
+from arife.gui.file_table_view import FileTableView
 from arife.gui.plugin_dialog import PluginManagerDialog
 from arife.gui.settings import AppSettings
 from arife.gui.worker import DirectoryScanWorker, HashWorker, MetadataExtractionWorker
@@ -122,13 +122,13 @@ class MainWindow(QMainWindow):
         row.addWidget(recursive_checkbox)
         return search_box, recursive_checkbox, row
 
-    def _build_table_view(self) -> tuple[FileTableModel, QTableView]:
+    def _build_table_view(self) -> tuple[FileTableModel, FileTableView]:
         model = FileTableModel()
-        view = QTableView()
+        view = FileTableView()
         view.setModel(model)
-        view.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
-        view.setSelectionMode(QTableView.SelectionMode.ExtendedSelection)
-        view.setEditTriggers(QTableView.EditTrigger.NoEditTriggers)
+        view.setSelectionBehavior(FileTableView.SelectionBehavior.SelectRows)
+        view.setSelectionMode(FileTableView.SelectionMode.ExtendedSelection)
+        view.setEditTriggers(FileTableView.EditTrigger.NoEditTriggers)
         view.horizontalHeader().setStretchLastSection(True)
         view.setSortingEnabled(True)
         view.setColumnHidden(LOCATION_COLUMN, not self._recursive_checkbox.isChecked())
@@ -136,6 +136,8 @@ class MainWindow(QMainWindow):
         view.doubleClicked.connect(self._on_table_double_clicked)
         view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         view.customContextMenuRequested.connect(self._on_table_context_menu)
+        view.open_requested.connect(self._on_open_requested)
+        view.delete_requested.connect(self._on_delete_requested)
         return model, view
 
     def _build_menu(self) -> None:
@@ -145,6 +147,11 @@ class MainWindow(QMainWindow):
         open_action.setShortcut("Ctrl+O")
         open_action.triggered.connect(self._open_folder_dialog)
         file_menu.addAction(open_action)
+
+        go_up_action = QAction("Go &Up", self)
+        go_up_action.setShortcut("Alt+Up")
+        go_up_action.triggered.connect(self._go_up)
+        file_menu.addAction(go_up_action)
 
         export_action = QAction("&Export File List…", self)
         export_action.setShortcut("Ctrl+E")
@@ -210,6 +217,11 @@ class MainWindow(QMainWindow):
         if directory:
             self._load_directory(Path(directory))
 
+    def _go_up(self) -> None:
+        parent = self._current_root.parent
+        if parent != self._current_root:
+            self._load_directory(parent)
+
     def _export_file_list(self) -> None:
         default_path = str(self._current_root / "arife-export.csv")
         path_str, selected_filter = QFileDialog.getSaveFileName(
@@ -240,19 +252,31 @@ class MainWindow(QMainWindow):
         path = self._dir_model.filePath(index)
         self._load_directory(Path(path))
 
-    def _on_table_double_clicked(self, index) -> None:
-        entry = self._table_model.entry_at(index.row())
-        if entry is None:
-            return
+    def _open_entry(self, entry) -> None:
         if entry.is_dir:
             self._load_directory(entry.path)
         else:
             open_with_default_app(entry.path)
 
+    def _on_table_double_clicked(self, index) -> None:
+        entry = self._table_model.entry_at(index.row())
+        if entry is not None:
+            self._open_entry(entry)
+
     def _selected_entries(self) -> list:
         rows = self._table_view.selectionModel().selectedRows()
         entries = (self._table_model.entry_at(r.row()) for r in rows)
         return [e for e in entries if e is not None]
+
+    def _on_open_requested(self) -> None:
+        entries = self._selected_entries()
+        if len(entries) == 1:
+            self._open_entry(entries[0])
+
+    def _on_delete_requested(self) -> None:
+        entries = self._selected_entries()
+        if entries:
+            self._trash_entries(entries)
 
     def _on_table_context_menu(self, position: QPoint) -> None:
         index = self._table_view.indexAt(position)
@@ -291,11 +315,7 @@ class MainWindow(QMainWindow):
             return
 
         if chosen is open_action:
-            entry = entries[0]
-            if entry.is_dir:
-                self._load_directory(entry.path)
-            else:
-                open_with_default_app(entry.path)
+            self._open_entry(entries[0])
         elif chosen is reveal_action:
             reveal_in_file_manager(entries[0].path)
         elif chosen is copy_action:
