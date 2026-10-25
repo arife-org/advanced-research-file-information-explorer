@@ -5,6 +5,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, QRunnable, Signal
 
+from arife.core.content_search import SearchMatch, search_file_contents
 from arife.core.duplicates import find_duplicate_files
 from arife.core.models import FileEntry, MetadataResult
 from arife.core.plugin import PluginManager
@@ -102,3 +103,31 @@ class DuplicateFinderWorker(QRunnable):
             should_cancel=lambda: self._cancelled,
         )
         self.signals.finished.emit(result)
+
+
+class _ContentSearchSignals(QObject):
+    progress = Signal(int, int)  # current, total candidate files searched
+    finished = Signal(list)  # list[SearchMatch]
+
+
+class ContentSearchWorker(QRunnable):
+    """Searches `entries` for `query` by file content on a background thread."""
+
+    def __init__(self, entries: list[FileEntry], query: str) -> None:
+        super().__init__()
+        self._entries = entries
+        self._query = query
+        self._cancelled = False
+        self.signals = _ContentSearchSignals()
+
+    def cancel(self) -> None:
+        self._cancelled = True
+
+    def run(self) -> None:
+        matches: list[SearchMatch] = search_file_contents(
+            self._entries,
+            self._query,
+            progress_callback=lambda current, total: self.signals.progress.emit(current, total),
+            should_cancel=lambda: self._cancelled,
+        )
+        self.signals.finished.emit(matches)

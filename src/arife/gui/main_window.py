@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 from arife import __version__
 from arife.core.export import export_entries_to_csv, export_entries_to_json
 from arife.core.plugin import PluginManager
+from arife.gui.content_search_dialog import ContentSearchDialog
 from arife.gui.detail_panel import DetailPanel
 from arife.gui.duplicate_finder_dialog import DuplicateFinderDialog
 from arife.gui.file_actions import (
@@ -173,6 +174,11 @@ class MainWindow(QMainWindow):
         duplicates_action = QAction("Find &Duplicate Files…", self)
         duplicates_action.triggered.connect(self._open_duplicate_finder)
         tools_menu.addAction(duplicates_action)
+
+        search_action = QAction("&Search File Contents…", self)
+        search_action.setShortcut("Ctrl+Shift+F")
+        search_action.triggered.connect(self._open_content_search)
+        tools_menu.addAction(search_action)
 
         help_menu = self.menuBar().addMenu("&Help")
         about_action = QAction("&About ARIFE", self)
@@ -410,6 +416,12 @@ class MainWindow(QMainWindow):
 
     def _open_duplicate_finder(self) -> None:
         dialog = DuplicateFinderDialog(self._current_root, self)
+        dialog.exec()
+
+    def _open_content_search(self) -> None:
+        dialog = ContentSearchDialog(
+            self._current_root, recursive=self._recursive_checkbox.isChecked(), parent=self
+        )
         dialog.exec()
 
     def _show_about(self) -> None:
