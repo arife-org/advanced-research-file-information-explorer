@@ -18,7 +18,8 @@ your research throws at it.
 ## Features
 
 - 🗂️ **Folder tree + file table** — browse your filesystem like a normal file
-  explorer, with a live detail panel for whatever you select.
+  explorer, with native file-type icons, sortable columns, multi-select, and
+  a live detail panel for whatever you select.
 - 🔌 **Plugin-based metadata extraction** — every plugin decides which files
   it applies to and what metadata it contributes; results are merged and
   shown grouped by plugin.
@@ -31,10 +32,22 @@ your research throws at it.
     preview for CSV/TSV, and structure for JSON/JSON Lines files.
   - **Image / EXIF** — dimensions, format, color mode and key EXIF fields
     (camera make/model, exposure, ISO, focal length, ...).
+- 🔍 **Full-text content search** — search inside plain-text files and PDFs
+  for a substring, recursively, with a snippet of the matching text.
+- 🧮 **Duplicate finder** — groups files by content hash (with a size
+  pre-filter so it doesn't hash everything) and reports reclaimable space.
+- 📤 **Export** the current file listing to CSV or JSON for documentation.
+- 🗑️ **Open, reveal, and safely trash files** — double-click or Enter to
+  open with the OS default app, right-click for "Reveal in Finder/Explorer",
+  Delete to move to the trash (never a permanent delete) — all batchable
+  across a multi-selection.
 - 🧩 **Extensible by design** — third-party plugins are discovered
   automatically via standard Python entry points, no core changes required.
-- ⚡ **Responsive UI** — metadata extraction runs on background threads, so
-  parsing a large PDF or dataset never freezes the interface.
+- ⚡ **Responsive UI** — metadata extraction, hashing, scanning, duplicate
+  detection, and content search all run on background threads, so nothing
+  ever freezes the interface.
+- 💾 **Remembers your session** — last folder, plugin selection, recursive
+  scan setting, and window size persist between launches.
 - 🆓 **100% free and open source**, MIT licensed, no telemetry, no lock-in.
 
 ## Installation
@@ -43,20 +56,21 @@ ARIFE requires **Python 3.10+**.
 
 ```bash
 # Clone the repository
-git clone https://github.com/arife-project/arife.git
-cd arife
+git clone https://github.com/arife-org/advanced-research-file-information-explorer.git
+cd advanced-research-file-information-explorer
 
-# Install with all optional plugin dependencies (PDF, images, datasets)
+# Install with all optional extras (PDF, images, datasets, trash)
 pip install -e ".[all]"
 ```
 
-Prefer a minimal install and add plugin support later? Install the core
-package and add extras as needed:
+Prefer a minimal install and add extras later? Install the core package
+and add extras as needed:
 
 ```bash
 pip install -e .            # core + basic metadata + dataset preview only
-pip install -e ".[pdf]"     # + PDF research paper plugin
+pip install -e ".[pdf]"     # + PDF research paper plugin + PDF content search
 pip install -e ".[images]"  # + image/EXIF plugin
+pip install -e ".[trash]"   # + safe "move to trash" instead of permanent delete
 ```
 
 ## Usage
@@ -71,20 +85,30 @@ python -m arife
 
 Then:
 
-1. Browse to a folder using the tree on the left, or **File → Open Folder…**.
+1. Browse to a folder using the tree on the left, **File → Open Folder…**, or
+   **File → Go Up** (Alt+Up) to move to the parent folder.
 2. Select a file in the table to see everything ARIFE's active plugins can
    tell you about it, in the panel on the right — including an on-demand
    SHA-256 hash via the button in the detail panel.
 3. Use the filter box to narrow down large folders by filename, and click
-   any column header to sort (folders always stay on top).
+   any column header to sort (folders always stay on top). Select multiple
+   rows with Ctrl/Shift-click.
 4. Check **Include subfolders** to scan recursively; a "Location" column
    then shows each result's path relative to the current folder.
-5. Open **Tools → Plugin Manager…** to enable or disable individual plugins
+5. Double-click or press Enter to open the selected file with your OS's
+   default application; press Delete (or right-click → Move to Trash) to
+   send it to the trash — never a permanent delete. Right-click also offers
+   "Reveal in Finder/Explorer" and "Copy Path".
+6. **Tools → Search File Contents…** (Ctrl+Shift+F) to search inside text
+   files and PDFs, **Tools → Find Duplicate Files…** to locate duplicate
+   content, and **File → Export File List…** (Ctrl+E) to save the current
+   listing as CSV/JSON.
+7. Open **Tools → Plugin Manager…** to enable or disable individual plugins
    (useful if a plugin's optional dependency isn't installed, or you simply
    don't need it).
 
-ARIFE remembers your last opened folder, plugin selection and window size
-between launches.
+ARIFE remembers your last opened folder, plugin selection, recursive-scan
+setting, and window size between launches.
 
 ## Writing your own plugin
 
@@ -128,11 +152,13 @@ a hint instead of crashing when the dependency is missing.
 
 ```
 src/arife/
-├── core/           # scanning, data models, plugin discovery/management
+├── core/           # scanning, data models, plugins, duplicates, search, export
 ├── plugins/        # built-in plugins (basic metadata, PDF, datasets, images)
 └── gui/            # PySide6 desktop application
-tests/              # pytest test suite for core + built-in plugins
+tests/              # pytest test suite for core + GUI (headless, offscreen)
 ```
+
+See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## Development
 
