@@ -50,7 +50,24 @@ def test_delete_key_emits_delete_requested(qapp):
     assert received == [True]
 
 
-def test_other_keys_do_not_trigger_either_signal(qapp):
+def test_f2_key_emits_rename_requested(qapp):
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QKeyEvent
+    from PySide6.QtWidgets import QApplication
+
+    from arife.gui.file_table_view import FileTableView
+
+    view = FileTableView()
+    received = []
+    view.rename_requested.connect(lambda: received.append(True))
+
+    event = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_F2, Qt.KeyboardModifier.NoModifier)
+    QApplication.sendEvent(view, event)
+
+    assert received == [True]
+
+
+def test_other_keys_do_not_trigger_any_signal(qapp):
     from PySide6.QtCore import Qt
     from PySide6.QtGui import QKeyEvent
     from PySide6.QtWidgets import QApplication
@@ -60,11 +77,14 @@ def test_other_keys_do_not_trigger_either_signal(qapp):
     view = FileTableView()
     opened = []
     deleted = []
+    renamed = []
     view.open_requested.connect(lambda: opened.append(True))
     view.delete_requested.connect(lambda: deleted.append(True))
+    view.rename_requested.connect(lambda: renamed.append(True))
 
     event = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_A, Qt.KeyboardModifier.NoModifier)
     QApplication.sendEvent(view, event)
 
     assert opened == []
     assert deleted == []
+    assert renamed == []

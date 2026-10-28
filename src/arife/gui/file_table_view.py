@@ -1,4 +1,4 @@
-"""QTableView subclass adding Enter-to-open and Delete-to-trash keyboard shortcuts."""
+"""QTableView subclass adding Enter/Delete/F2 keyboard shortcuts."""
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
@@ -9,6 +9,7 @@ from PySide6.QtWidgets import QTableView
 class FileTableView(QTableView):
     open_requested = Signal()
     delete_requested = Signal()
+    rename_requested = Signal()
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
         key = event.key()
@@ -17,5 +18,8 @@ class FileTableView(QTableView):
             return
         if key == Qt.Key.Key_Delete:
             self.delete_requested.emit()
+            return
+        if key == Qt.Key.Key_F2:
+            self.rename_requested.emit()
             return
         super().keyPressEvent(event)

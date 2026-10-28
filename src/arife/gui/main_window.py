@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QFileSystemModel,
     QHBoxLayout,
+    QInputDialog,
     QLineEdit,
     QMainWindow,
     QMenu,
@@ -23,6 +24,7 @@ from PySide6.QtWidgets import (
 
 from arife import __version__
 from arife.core.export import export_entries_to_csv, export_entries_to_json
+from arife.core.file_ops import create_folder, rename_entry
 from arife.core.plugin import PluginManager
 from arife.gui.content_search_dialog import ContentSearchDialog
 from arife.gui.detail_panel import DetailPanel
@@ -139,6 +141,7 @@ class MainWindow(QMainWindow):
         view.customContextMenuRequested.connect(self._on_table_context_menu)
         view.open_requested.connect(self._on_open_requested)
         view.delete_requested.connect(self._on_delete_requested)
+        view.rename_requested.connect(self._on_rename_requested)
         return model, view
 
     def _build_menu(self) -> None:
@@ -153,6 +156,11 @@ class MainWindow(QMainWindow):
         go_up_action.setShortcut("Alt+Up")
         go_up_action.triggered.connect(self._go_up)
         file_menu.addAction(go_up_action)
+
+        new_folder_action = QAction("&New Folder…", self)
+        new_folder_action.setShortcut("Ctrl+Shift+N")
+        new_folder_action.triggered.connect(self._new_folder)
+        file_menu.addAction(new_folder_action)
 
         export_action = QAction("&Export File List…", self)
         export_action.setShortcut("Ctrl+E")
@@ -228,6 +236,19 @@ class MainWindow(QMainWindow):
         if parent != self._current_root:
             self._load_directory(parent)
 
+    def _new_folder(self) -> None:
+        name, ok = QInputDialog.getText(self, "New Folder", "Folder name:")
+        if not ok or not name:
+            return
+
+        try:
+            create_folder(self._current_root, name)
+        except (ValueError, OSError) as exc:
+            QMessageBox.critical(self, "Could not create folder", str(exc))
+            return
+
+        self._load_directory(self._current_root)
+
     def _export_file_list(self) -> None:
         default_path = str(self._current_root / "arife-export.csv")
         path_str, selected_filter = QFileDialog.getSaveFileName(
@@ -284,6 +305,24 @@ class MainWindow(QMainWindow):
         if entries:
             self._trash_entries(entries)
 
+    def _on_rename_requested(self) -> None:
+        entries = self._selected_entries()
+        if len(entries) == 1:
+            self._rename_entry_interactive(entries[0])
+
+    def _rename_entry_interactive(self, entry) -> None:
+        new_name, ok = QInputDialog.getText(self, "Rename", "New name:", text=entry.name)
+        if not ok or not new_name or new_name == entry.name:
+            return
+
+        try:
+            rename_entry(entry.path, new_name)
+        except (ValueError, OSError) as exc:
+            QMessageBox.critical(self, "Could not rename", str(exc))
+            return
+
+        self._load_directory(self._current_root)
+
     def _on_table_context_menu(self, position: QPoint) -> None:
         index = self._table_view.indexAt(position)
         if not index.isValid():
@@ -300,12 +339,13 @@ class MainWindow(QMainWindow):
         menu = QMenu(self)
         menu.setToolTipsVisible(True)
 
-        open_action = reveal_action = None
+        open_action = reveal_action = rename_action = None
         if len(entries) == 1:
             open_action = menu.addAction("Open")
             reveal_action = menu.addAction(reveal_label())
             menu.addSeparator()
             copy_action = menu.addAction("Copy Path")
+            rename_action = menu.addAction("Rename…")
         else:
             copy_action = menu.addAction("Copy Paths")
 
@@ -326,6 +366,8 @@ class MainWindow(QMainWindow):
             reveal_in_file_manager(entries[0].path)
         elif chosen is copy_action:
             QApplication.clipboard().setText("\n".join(str(e.path) for e in entries))
+        elif chosen is rename_action:
+            self._rename_entry_interactive(entries[0])
         elif chosen is trash_action:
             self._trash_entries(entries)
 
