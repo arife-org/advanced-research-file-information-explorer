@@ -173,7 +173,9 @@ ruff check .          # lint
 Issues and pull requests are welcome — whether that's a bug fix, a new
 built-in plugin, or improvements to the UI. Since ARIFE's whole design is
 built around small, independent plugins, adding support for a new file type
-or research workflow rarely touches the core at all.
+or research workflow rarely touches the core at all. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for dev environment setup, how the
+codebase is organized, and what a good PR looks like.
 
 ## License
 
