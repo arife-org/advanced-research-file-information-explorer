@@ -1,6 +1,7 @@
 """Main window of the ARIFE desktop application."""
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 from PySide6.QtCore import QDir, QPoint, Qt, QThreadPool
@@ -24,7 +25,7 @@ from PySide6.QtWidgets import (
 
 from arife import __version__
 from arife.core.export import export_entries_to_csv, export_entries_to_json
-from arife.core.file_ops import create_folder, rename_entry
+from arife.core.file_ops import copy_entry, create_folder, move_entry, rename_entry
 from arife.core.plugin import PluginManager
 from arife.gui.content_search_dialog import ContentSearchDialog
 from arife.gui.detail_panel import DetailPanel
@@ -59,6 +60,8 @@ class MainWindow(QMainWindow):
         self._selected_entry = None
         self._all_entries: list = []
         self._scan_generation = 0
+        self._clipboard_paths: list[Path] = []
+        self._clipboard_cut = False
 
         self._build_ui()
         self._build_menu()
@@ -173,6 +176,24 @@ class MainWindow(QMainWindow):
         quit_action.setShortcut("Ctrl+Q")
         quit_action.triggered.connect(self.close)
         file_menu.addAction(quit_action)
+
+        edit_menu = self.menuBar().addMenu("&Edit")
+
+        copy_entry_action = QAction("&Copy", self)
+        copy_entry_action.setShortcut("Ctrl+C")
+        copy_entry_action.triggered.connect(self._copy_selection)
+        edit_menu.addAction(copy_entry_action)
+
+        cut_entry_action = QAction("Cu&t", self)
+        cut_entry_action.setShortcut("Ctrl+X")
+        cut_entry_action.triggered.connect(self._cut_selection)
+        edit_menu.addAction(cut_entry_action)
+
+        self._paste_action = QAction("&Paste", self)
+        self._paste_action.setShortcut("Ctrl+V")
+        self._paste_action.setEnabled(False)
+        self._paste_action.triggered.connect(self._paste_clipboard)
+        edit_menu.addAction(self._paste_action)
 
         tools_menu = self.menuBar().addMenu("&Tools")
         plugins_action = QAction("&Plugin Manager…", self)
@@ -326,6 +347,11 @@ class MainWindow(QMainWindow):
     def _on_table_context_menu(self, position: QPoint) -> None:
         index = self._table_view.indexAt(position)
         if not index.isValid():
+            if self._clipboard_paths:
+                menu = QMenu(self)
+                paste_action = menu.addAction("Paste")
+                if menu.exec(self._table_view.viewport().mapToGlobal(position)) is paste_action:
+                    self._paste_clipboard()
             return
 
         if not self._table_view.selectionModel().isSelected(index):
@@ -344,10 +370,16 @@ class MainWindow(QMainWindow):
             open_action = menu.addAction("Open")
             reveal_action = menu.addAction(reveal_label())
             menu.addSeparator()
-            copy_action = menu.addAction("Copy Path")
+            copy_path_action = menu.addAction("Copy Path")
             rename_action = menu.addAction("Rename…")
         else:
-            copy_action = menu.addAction("Copy Paths")
+            copy_path_action = menu.addAction("Copy Paths")
+
+        menu.addSeparator()
+        cut_action = menu.addAction("Cut")
+        copy_action = menu.addAction("Copy")
+        paste_action = menu.addAction("Paste")
+        paste_action.setEnabled(bool(self._clipboard_paths))
 
         menu.addSeparator()
         trash_label = "Move to Trash…" if len(entries) == 1 else f"Move {len(entries)} Items to Trash…"
@@ -364,10 +396,16 @@ class MainWindow(QMainWindow):
             self._open_entry(entries[0])
         elif chosen is reveal_action:
             reveal_in_file_manager(entries[0].path)
-        elif chosen is copy_action:
+        elif chosen is copy_path_action:
             QApplication.clipboard().setText("\n".join(str(e.path) for e in entries))
         elif chosen is rename_action:
             self._rename_entry_interactive(entries[0])
+        elif chosen is cut_action:
+            self._cut_selection()
+        elif chosen is copy_action:
+            self._copy_selection()
+        elif chosen is paste_action:
+            self._paste_clipboard()
         elif chosen is trash_action:
             self._trash_entries(entries)
 
@@ -398,6 +436,48 @@ class MainWindow(QMainWindow):
 
         if failures:
             QMessageBox.warning(self, "Some items could not be trashed", "\n".join(failures))
+
+    def _copy_selection(self) -> None:
+        entries = self._selected_entries()
+        if not entries:
+            return
+        self._set_clipboard([e.path for e in entries], cut=False)
+
+    def _cut_selection(self) -> None:
+        entries = self._selected_entries()
+        if not entries:
+            return
+        self._set_clipboard([e.path for e in entries], cut=True)
+
+    def _set_clipboard(self, paths: list[Path], *, cut: bool) -> None:
+        self._clipboard_paths = paths
+        self._clipboard_cut = cut
+        self._paste_action.setEnabled(True)
+        verb = "Cut" if cut else "Copied"
+        self.statusBar().showMessage(f"{verb} {len(paths)} item(s)")
+
+    def _paste_clipboard(self) -> None:
+        if not self._clipboard_paths:
+            return
+
+        failures = []
+        for source in self._clipboard_paths:
+            try:
+                if self._clipboard_cut:
+                    move_entry(source, self._current_root)
+                else:
+                    copy_entry(source, self._current_root)
+            except (OSError, shutil.Error) as exc:
+                failures.append(f"{source.name}: {exc}")
+
+        if self._clipboard_cut:
+            self._clipboard_paths = []
+            self._paste_action.setEnabled(False)
+
+        self._load_directory(self._current_root)
+
+        if failures:
+            QMessageBox.warning(self, "Some items could not be pasted", "\n".join(failures))
 
     # -- Metadata extraction --------------------------------------------------------------
     def _on_selection_changed(self, *_args) -> None:

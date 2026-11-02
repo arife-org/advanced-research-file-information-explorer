@@ -5,6 +5,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- New Folder (File → New Folder…, Ctrl+Shift+N) and Rename (F2 or
+  right-click → Rename…).
+- Copy, Cut and Paste (Edit menu or right-click, Ctrl+C/Ctrl+X/Ctrl+V) for
+  files and folders, including pasting into the same folder to duplicate,
+  recursive copying of directories, and auto-renaming (`name (copy).ext`)
+  on a name collision.
+- `CONTRIBUTING.md` and GitHub issue/PR templates for contributors.
+
 ## [0.2.0] - 2026-10-27
 
 ### Added

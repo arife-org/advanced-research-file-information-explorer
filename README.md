@@ -41,6 +41,10 @@ your research throws at it.
   open with the OS default app, right-click for "Reveal in Finder/Explorer",
   Delete to move to the trash (never a permanent delete) — all batchable
   across a multi-selection.
+- ✂️ **Copy, cut and paste** files and folders (Edit menu, right-click, or
+  Ctrl+C/Ctrl+X/Ctrl+V) — paste into another folder to copy/move, or into
+  the same folder to duplicate; name collisions are resolved automatically.
+- 📁 **New Folder** (Ctrl+Shift+N) and **Rename** (F2 or right-click).
 - 🧩 **Extensible by design** — third-party plugins are discovered
   automatically via standard Python entry points, no core changes required.
 - ⚡ **Responsive UI** — metadata extraction, hashing, scanning, duplicate
@@ -98,7 +102,8 @@ Then:
 5. Double-click or press Enter to open the selected file with your OS's
    default application; press Delete (or right-click → Move to Trash) to
    send it to the trash — never a permanent delete. Right-click also offers
-   "Reveal in Finder/Explorer" and "Copy Path".
+   "Reveal in Finder/Explorer", "Copy Path", "Copy"/"Cut"/"Paste", New
+   Folder, and Rename (F2).
 6. **Tools → Search File Contents…** (Ctrl+Shift+F) to search inside text
    files and PDFs, **Tools → Find Duplicate Files…** to locate duplicate
    content, and **File → Export File List…** (Ctrl+E) to save the current
