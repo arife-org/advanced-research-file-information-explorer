@@ -1,4 +1,4 @@
-# ARIFE — Advanced Research File Information Explorer
+# ARIFE — Advanced Research Information File Explorer
 
 **ARIFE** is a free, open-source desktop application for exploring files and
 digging into their metadata — built for researchers, data scientists and
@@ -15,44 +15,64 @@ your research throws at it.
 > ⚠️ Status: early alpha. Core scanning, the plugin system and the desktop UI
 > are functional; expect rough edges and rapid change.
 
+## Contents
+
+- [Features](#features)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Writing your own plugin](#writing-your-own-plugin)
+- [Project layout](#project-layout)
+- [Development](#development)
+- [Contributing](#contributing)
+- [License](#license)
+
 ## Features
 
-- 🗂️ **Folder tree + file table** — browse your filesystem like a normal file
-  explorer, with native file-type icons, sortable columns, multi-select, and
-  a live detail panel for whatever you select.
-- 🔌 **Plugin-based metadata extraction** — every plugin decides which files
-  it applies to and what metadata it contributes; results are merged and
-  shown grouped by plugin.
-- 🧠 **Built-in plugins**:
-  - **Basic Metadata** — size, timestamps, MIME type, extension (works for
-    every file, no extra dependencies).
-  - **Research Paper (PDF)** — title, author, subject, page count and a
-    best-effort DOI extracted from the document text.
-  - **Dataset Preview** — row/column counts, column names and a first-row
-    preview for CSV/TSV, and structure for JSON/JSON Lines files.
-  - **Image / EXIF** — dimensions, format, color mode and key EXIF fields
-    (camera make/model, exposure, ISO, focal length, ...).
-- 🔍 **Full-text content search** — search inside plain-text files and PDFs
-  for a substring, recursively, with a snippet of the matching text.
-- 🧮 **Duplicate finder** — groups files by content hash (with a size
-  pre-filter so it doesn't hash everything) and reports reclaimable space.
-- 📤 **Export** the current file listing to CSV or JSON for documentation.
-- 🗑️ **Open, reveal, and safely trash files** — double-click or Enter to
-  open with the OS default app, right-click for "Reveal in Finder/Explorer",
-  Delete to move to the trash (never a permanent delete) — all batchable
-  across a multi-selection.
-- ✂️ **Copy, cut and paste** files and folders (Edit menu, right-click, or
-  Ctrl+C/Ctrl+X/Ctrl+V) — paste into another folder to copy/move, or into
-  the same folder to duplicate; name collisions are resolved automatically.
-- 📁 **New Folder** (Ctrl+Shift+N) and **Rename** (F2 or right-click).
-- 🧩 **Extensible by design** — third-party plugins are discovered
-  automatically via standard Python entry points, no core changes required.
-- ⚡ **Responsive UI** — metadata extraction, hashing, scanning, duplicate
-  detection, and content search all run on background threads, so nothing
-  ever freezes the interface.
-- 💾 **Remembers your session** — last folder, plugin selection, recursive
-  scan setting, and window size persist between launches.
-- 🆓 **100% free and open source**, MIT licensed, no telemetry, no lock-in.
+**Browsing & navigation**
+
+- Folder tree + sortable file table, with native file-type icons and a live
+  detail panel for whatever you select.
+- Back / Forward navigation history (Alt+Left / Alt+Right) and Go Up
+  (Alt+Up), the way you'd expect from any file manager.
+- Recursive subfolder scanning with an "Include subfolders" toggle and a
+  "Location" column showing each result's path relative to the current
+  folder.
+- Filter the current listing by filename as you type.
+
+**Metadata, powered by plugins**
+
+- Every plugin decides which files it applies to and what metadata it
+  contributes; results are merged and shown grouped by plugin.
+- Built in: **Basic Metadata** (size, timestamps, MIME type, extension, no
+  extra dependencies), **Research Paper (PDF)** (title/author/subject, page
+  count, best-effort DOI extraction), **Dataset Preview** (row/column counts
+  and a first-row preview for CSV/TSV/JSON/JSON Lines), and **Image / EXIF**
+  (dimensions, format, camera make/model, exposure, ISO, focal length, ...).
+- On-demand SHA-256 hashing of the selected file.
+- Full-text content search across plain-text files and PDFs (recursive,
+  backgrounded, with a match snippet per result).
+- Duplicate file finder — groups files by content hash with a size
+  pre-filter so it doesn't hash everything, and reports reclaimable space.
+
+**File management**
+
+- Open with the OS default app, reveal in Finder/Explorer, and safely move
+  to the trash (never a permanent delete) — single file or multi-selection.
+- Copy, cut and paste files and folders, including pasting into the same
+  folder to duplicate; name collisions are resolved automatically
+  (`name (copy).ext`).
+- New Folder and Rename (F2), with the same validation either way.
+- Export the current listing to CSV or JSON for documentation.
+
+**Everything else**
+
+- Third-party plugins are discovered automatically via standard Python
+  entry points — no core changes required to support a new file type.
+- Metadata extraction, hashing, scanning, duplicate detection, and content
+  search all run on background threads, so nothing ever freezes the UI.
+- Remembers your last folder, plugin selection, recursive-scan setting, and
+  window size between launches.
+- 100% free and open source, MIT licensed, no telemetry, no lock-in.
 
 ## Installation
 
@@ -60,8 +80,8 @@ ARIFE requires **Python 3.10+**.
 
 ```bash
 # Clone the repository
-git clone https://github.com/arife-org/advanced-research-file-information-explorer.git
-cd advanced-research-file-information-explorer
+git clone https://github.com/arife-org/advanced-research-information-file-explorer.git
+cd advanced-research-information-file-explorer
 
 # Install with all optional extras (PDF, images, datasets, trash)
 pip install -e ".[all]"
@@ -89,8 +109,9 @@ python -m arife
 
 Then:
 
-1. Browse to a folder using the tree on the left, **File → Open Folder…**, or
-   **File → Go Up** (Alt+Up) to move to the parent folder.
+1. Browse to a folder using the tree on the left, **File → Open Folder…**,
+   **File → Go Up** (Alt+Up), or **Back/Forward** (Alt+Left/Alt+Right) to
+   retrace your steps.
 2. Select a file in the table to see everything ARIFE's active plugins can
    tell you about it, in the panel on the right — including an on-demand
    SHA-256 hash via the button in the detail panel.
@@ -102,8 +123,8 @@ Then:
 5. Double-click or press Enter to open the selected file with your OS's
    default application; press Delete (or right-click → Move to Trash) to
    send it to the trash — never a permanent delete. Right-click also offers
-   "Reveal in Finder/Explorer", "Copy Path", "Copy"/"Cut"/"Paste", New
-   Folder, and Rename (F2).
+   "Reveal in Finder/Explorer", "Copy Path", Copy/Cut/Paste (Ctrl+C/X/V),
+   and Rename (F2).
 6. **Tools → Search File Contents…** (Ctrl+Shift+F) to search inside text
    files and PDFs, **Tools → Find Duplicate Files…** to locate duplicate
    content, and **File → Export File List…** (Ctrl+E) to save the current

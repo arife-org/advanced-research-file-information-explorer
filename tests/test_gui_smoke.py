@@ -52,3 +52,44 @@ def test_plugin_manager_dialog_constructs(qapp):
     manager.discover()
     dialog = PluginManagerDialog(manager)
     assert dialog is not None
+
+
+def _wait_until(app, condition, timeout=2.0):
+    import time
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        app.processEvents()
+        if condition():
+            return True
+    return False
+
+
+def test_navigation_history_back_and_forward(qapp, tmp_path):
+    from arife.gui.main_window import MainWindow
+
+    sub = tmp_path / "sub"
+    sub.mkdir()
+
+    window = MainWindow()
+    try:
+        window._navigate_to(tmp_path)
+        assert _wait_until(qapp, lambda: window._current_root == tmp_path)
+
+        window._navigate_to(sub)
+        assert _wait_until(qapp, lambda: window._current_root == sub)
+        assert window._history_back[-1] == tmp_path
+        assert window._back_action.isEnabled()
+        assert not window._forward_action.isEnabled()
+
+        window._go_back()
+        assert _wait_until(qapp, lambda: window._current_root == tmp_path)
+        assert window._history_forward == [sub]
+        assert window._forward_action.isEnabled()
+
+        window._go_forward()
+        assert _wait_until(qapp, lambda: window._current_root == sub)
+        assert window._history_back[-1] == tmp_path
+        assert not window._history_forward
+    finally:
+        window.close()

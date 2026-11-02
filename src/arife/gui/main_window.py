@@ -43,11 +43,13 @@ from arife.gui.plugin_dialog import PluginManagerDialog
 from arife.gui.settings import AppSettings
 from arife.gui.worker import DirectoryScanWorker, HashWorker, MetadataExtractionWorker
 
+APP_TAGLINE = "Advanced Research Information File Explorer"
+
 
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("ARIFE — Advanced Research File Information Explorer")
+        self.setWindowTitle(f"ARIFE — {APP_TAGLINE}")
         self.resize(1200, 750)
 
         self._app_settings = AppSettings()
@@ -62,6 +64,8 @@ class MainWindow(QMainWindow):
         self._scan_generation = 0
         self._clipboard_paths: list[Path] = []
         self._clipboard_cut = False
+        self._history_back: list[Path] = []
+        self._history_forward: list[Path] = []
 
         self._build_ui()
         self._build_menu()
@@ -160,6 +164,18 @@ class MainWindow(QMainWindow):
         go_up_action.triggered.connect(self._go_up)
         file_menu.addAction(go_up_action)
 
+        self._back_action = QAction("&Back", self)
+        self._back_action.setShortcut("Alt+Left")
+        self._back_action.setEnabled(False)
+        self._back_action.triggered.connect(self._go_back)
+        file_menu.addAction(self._back_action)
+
+        self._forward_action = QAction("&Forward", self)
+        self._forward_action.setShortcut("Alt+Right")
+        self._forward_action.setEnabled(False)
+        self._forward_action.triggered.connect(self._go_forward)
+        file_menu.addAction(self._forward_action)
+
         new_folder_action = QAction("&New Folder…", self)
         new_folder_action.setShortcut("Ctrl+Shift+N")
         new_folder_action.triggered.connect(self._new_folder)
@@ -247,15 +263,44 @@ class MainWindow(QMainWindow):
         self._table_view.setColumnHidden(LOCATION_COLUMN, not checked)
         self._load_directory(self._current_root)
 
+    def _navigate_to(self, path: Path) -> None:
+        """Load `path`, recording the current folder in the back history."""
+        if path == self._current_root:
+            self._load_directory(path)
+            return
+
+        self._history_back.append(self._current_root)
+        self._history_forward.clear()
+        self._load_directory(path)
+        self._update_nav_actions()
+
+    def _go_back(self) -> None:
+        if not self._history_back:
+            return
+        self._history_forward.append(self._current_root)
+        self._load_directory(self._history_back.pop())
+        self._update_nav_actions()
+
+    def _go_forward(self) -> None:
+        if not self._history_forward:
+            return
+        self._history_back.append(self._current_root)
+        self._load_directory(self._history_forward.pop())
+        self._update_nav_actions()
+
+    def _update_nav_actions(self) -> None:
+        self._back_action.setEnabled(bool(self._history_back))
+        self._forward_action.setEnabled(bool(self._history_forward))
+
     def _open_folder_dialog(self) -> None:
         directory = QFileDialog.getExistingDirectory(self, "Open Folder", str(self._current_root))
         if directory:
-            self._load_directory(Path(directory))
+            self._navigate_to(Path(directory))
 
     def _go_up(self) -> None:
         parent = self._current_root.parent
         if parent != self._current_root:
-            self._load_directory(parent)
+            self._navigate_to(parent)
 
     def _new_folder(self) -> None:
         name, ok = QInputDialog.getText(self, "New Folder", "Folder name:")
@@ -298,11 +343,11 @@ class MainWindow(QMainWindow):
 
     def _on_tree_clicked(self, index) -> None:
         path = self._dir_model.filePath(index)
-        self._load_directory(Path(path))
+        self._navigate_to(Path(path))
 
     def _open_entry(self, entry) -> None:
         if entry.is_dir:
-            self._load_directory(entry.path)
+            self._navigate_to(entry.path)
         else:
             open_with_default_app(entry.path)
 
@@ -551,7 +596,7 @@ class MainWindow(QMainWindow):
             self,
             "About ARIFE",
             f"<h3>ARIFE {__version__}</h3>"
-            "<p>Advanced Research File Information Explorer</p>"
+            f"<p>{APP_TAGLINE}</p>"
             "<p>A free, open-source, plugin-based file and metadata explorer "
             "for researchers.</p>"
             "<p>Licensed under the MIT License.</p>",

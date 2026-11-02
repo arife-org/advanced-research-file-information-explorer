@@ -8,8 +8,8 @@ ops), or a GUI change. This doc covers what you need to get a change in.
 ## Setting up a dev environment
 
 ```bash
-git clone https://github.com/arife-org/advanced-research-file-information-explorer.git
-cd advanced-research-file-information-explorer
+git clone https://github.com/arife-org/advanced-research-information-file-explorer.git
+cd advanced-research-information-file-explorer
 
 python3 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
