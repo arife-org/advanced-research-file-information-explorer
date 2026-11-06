@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -24,6 +25,10 @@ class DetailPanel(QWidget):
         self._title = QLabel("Select a file to see details")
         self._title.setStyleSheet("font-weight: bold; padding: 4px;")
 
+        self._thumbnail_label = QLabel()
+        self._thumbnail_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._thumbnail_label.hide()
+
         self._hash_button = QPushButton("Compute SHA-256 Hash")
         self._hash_button.setEnabled(False)
         self._hash_button.clicked.connect(self.hash_requested.emit)
@@ -43,6 +48,7 @@ class DetailPanel(QWidget):
 
         layout = QVBoxLayout(self)
         layout.addWidget(self._title)
+        layout.addWidget(self._thumbnail_label)
         layout.addLayout(hash_row)
         layout.addWidget(self._tree)
 
@@ -51,6 +57,16 @@ class DetailPanel(QWidget):
         self._tree.clear()
         self._hash_label.setText("")
         self._hash_button.setEnabled(not is_dir)
+        self._thumbnail_label.hide()
+        self._thumbnail_label.clear()
+
+    def show_thumbnail(self, image: QImage | None) -> None:
+        if image is None or image.isNull():
+            self._thumbnail_label.hide()
+            self._thumbnail_label.clear()
+            return
+        self._thumbnail_label.setPixmap(QPixmap.fromImage(image))
+        self._thumbnail_label.show()
 
     def show_results(self, name: str, results: list[MetadataResult]) -> None:
         self._title.setText(name)
@@ -88,3 +104,5 @@ class DetailPanel(QWidget):
         self._tree.clear()
         self._hash_label.setText("")
         self._hash_button.setEnabled(False)
+        self._thumbnail_label.hide()
+        self._thumbnail_label.clear()

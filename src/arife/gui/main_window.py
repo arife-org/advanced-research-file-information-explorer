@@ -41,7 +41,13 @@ from arife.gui.file_table_model import LOCATION_COLUMN, FileTableModel
 from arife.gui.file_table_view import FileTableView
 from arife.gui.plugin_dialog import PluginManagerDialog
 from arife.gui.settings import AppSettings
-from arife.gui.worker import DirectoryScanWorker, HashWorker, MetadataExtractionWorker
+from arife.gui.worker import (
+    DirectoryScanWorker,
+    HashWorker,
+    MetadataExtractionWorker,
+    ThumbnailWorker,
+    is_supported_image,
+)
 
 APP_TAGLINE = "Advanced Research Information File Explorer"
 
@@ -547,8 +553,17 @@ class MainWindow(QMainWindow):
         worker.signals.finished.connect(self._on_metadata_ready)
         self._thread_pool.start(worker)
 
+        if not entry.is_dir and is_supported_image(entry.suffix):
+            thumbnail_worker = ThumbnailWorker(entry)
+            thumbnail_worker.signals.finished.connect(self._on_thumbnail_ready)
+            self._thread_pool.start(thumbnail_worker)
+
     def _on_metadata_ready(self, entry, results) -> None:
         self._detail_panel.show_results(entry.name, results)
+
+    def _on_thumbnail_ready(self, entry, image) -> None:
+        if entry is self._selected_entry:
+            self._detail_panel.show_thumbnail(image)
 
     def _on_hash_requested(self) -> None:
         entry = self._selected_entry

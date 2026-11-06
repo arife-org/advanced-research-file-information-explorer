@@ -13,6 +13,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   recursive copying of directories, and auto-renaming (`name (copy).ext`)
   on a name collision.
 - `CONTRIBUTING.md` and GitHub issue/PR templates for contributors.
+- Back/Forward navigation history (File menu, Alt+Left/Alt+Right).
+- Image thumbnail preview in the detail panel for file formats Qt can
+  decode (PNG, JPEG, BMP, GIF, ...), loaded and downscaled on a background
+  thread.
 
 ## [0.2.0] - 2026-10-27
 

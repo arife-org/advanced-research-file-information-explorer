@@ -49,6 +49,8 @@ your research throws at it.
   and a first-row preview for CSV/TSV/JSON/JSON Lines), and **Image / EXIF**
   (dimensions, format, camera make/model, exposure, ISO, focal length, ...).
 - On-demand SHA-256 hashing of the selected file.
+- Inline image thumbnail preview in the detail panel (PNG, JPEG, BMP, GIF,
+  and anything else Qt can decode), loaded on a background thread.
 - Full-text content search across plain-text files and PDFs (recursive,
   backgrounded, with a match snippet per result).
 - Duplicate file finder — groups files by content hash with a size
